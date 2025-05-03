@@ -1,3 +1,5 @@
-discord.py==2.3.2
-undetected-chromedriver==3.5.5
-certifi
+discord.py
+capmonster-python
+undetected-chromedriver
+requests
+selenium 
