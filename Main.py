@@ -5,10 +5,10 @@ import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 
-TOKEN = "YOUR_DISCORD_BOT_TOKEN"
-CAPMONSTER_KEY = "YOUR_CAPMONSTER_API_KEY"
+TOKEN = "MTM2MzQ0MzE1OTAwNjMxNDY2OA.GvCZMH.u0VnJEI-NPDlwvF7c4NFlCLnoix96vrZdpSzHg"
+CAPMONSTER_KEY = "3fdf7e4881366ecd820f6f48686f4bc8"
 
-intents = discord.Intents.default()
+intents = discord.Intents.all()
 intents.message_content = True
 client = discord.Client(intents=intents)
 
