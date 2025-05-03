@@ -1,4 +1,0 @@
-discord.py
-selenium
-undetected-chromedriver
-requests
