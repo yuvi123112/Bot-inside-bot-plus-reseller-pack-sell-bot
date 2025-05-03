@@ -1,5 +1,4 @@
+python-capmonster
 discord.py
-capmonster-python
 undetected-chromedriver
 requests
-selenium 
