@@ -10,7 +10,7 @@ import string
 import time
 import requests
 import json
-from python_capmonster import HCaptchaTask
+from capmonstercloud import HCaptchaTask
 
 TOKEN = "MTM2MzQ0MzE1OTAwNjMxNDY2OA.GvCZMH.u0VnJEI-NPDlwvF7c4NFlCLnoix96vrZdpSzHg"
 CAPMONSTER_KEY = "3fdf7e4881366ecd820f6f48686f4bc8"
