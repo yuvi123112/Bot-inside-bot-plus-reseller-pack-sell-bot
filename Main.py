@@ -2,7 +2,7 @@ import os
 import asyncio
 import discord
 from discord.ext import commands
-from capmonster_python import HCaptchaTask
+
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 import random
@@ -10,6 +10,7 @@ import string
 import time
 import requests
 import json
+from capmonster_python import CapMonsterClient
 
 TOKEN = "MTM2MzQ0MzE1OTAwNjMxNDY2OA.GvCZMH.u0VnJEI-NPDlwvF7c4NFlCLnoix96vrZdpSzHg"
 CAPMONSTER_KEY = "3fdf7e4881366ecd820f6f48686f4bc8"
