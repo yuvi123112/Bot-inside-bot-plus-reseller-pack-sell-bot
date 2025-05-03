@@ -1,4 +1,4 @@
-python-capmonster
+capmonstercloud
 discord.py
 undetected-chromedriver
 requests
