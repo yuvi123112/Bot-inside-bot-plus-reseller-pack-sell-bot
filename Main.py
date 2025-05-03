@@ -10,138 +10,120 @@ import string
 import time
 import requests
 import json
-from capmonstercloud import HCaptchaTask
+import re
+
+from capmonstercloud.client import Client as CapmonsterClient
+from capmonstercloud.tasks import HCaptchaTask
 
 TOKEN = "MTM2MzQ0MzE1OTAwNjMxNDY2OA.GvCZMH.u0VnJEI-NPDlwvF7c4NFlCLnoix96vrZdpSzHg"
 CAPMONSTER_KEY = "3fdf7e4881366ecd820f6f48686f4bc8"
 MAILTM_API_URL = "https://api.mail.tm"
-MAILTM_USER = "dhimanritu85@chefalicious.com"
-MAILTM_PASSWORD = "Atlasos@1234"
 
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="$", intents=intents)
 
-def generate_random_string(length=8):
+def generate_random_string(length=12):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
-# Create an authentication token to use the mail.tm API
-def get_mailtm_auth_token():
-    response = requests.post(f"{MAILTM_API_URL}/token", json={"address": MAILTM_USER, "password": MAILTM_PASSWORD})
-    if response.status_code == 200:
-        data = response.json()
-        return data['token']
-    else:
-        print("Error: Unable to authenticate with mail.tm.")
-        return None
+# Register a new mail.tm account and get token
+def register_mailtm():
+    username = f"{generate_random_string(8)}@chefalicious.com"
+    password = generate_random_string(12)
+    res = requests.post(f"{MAILTM_API_URL}/accounts", json={"address": username, "password": password})
+    if res.status_code == 201:
+        token_res = requests.post(f"{MAILTM_API_URL}/token", json={"address": username, "password": password})
+        if token_res.status_code == 200:
+            token = token_res.json()['token']
+            return username, password, token
+    print("Mail.tm registration failed.")
+    return None, None, None
 
-# Function to create a temporary email using mail.tm API
-def create_temp_email():
-    token = get_mailtm_auth_token()
-    if not token:
-        return None
-
-    headers = {
-        'Authorization': f'Bearer {token}'
-    }
-
-    # Request to create a new temporary email address
-    response = requests.post(f"{MAILTM_API_URL}/emails", headers=headers)
-    if response.status_code == 201:
-        data = response.json()
-        temp_email = data['address']
-        print(f"Temporary Email Created: {temp_email}")
-        return temp_email
-    else:
-        print("Error: Unable to create temporary email.")
-        return None
-
-# Function to check the inbox for a verification email
-def check_inbox(temp_email):
-    token = get_mailtm_auth_token()
-    if not token:
-        return None
-    
-    headers = {
-        'Authorization': f'Bearer {token}'
-    }
-
-    # Get the email ID by checking inbox
-    response = requests.get(f"{MAILTM_API_URL}/emails/{temp_email}", headers=headers)
-    if response.status_code == 200:
-        data = response.json()
-        for email in data['hydra:member']:
-            if "discord.com" in email['from']:  # Check for Discord verification email
-                print(f"Found email from Discord: {email['subject']}")
-                verification_link = extract_verification_link(email['text'])
-                if verification_link:
-                    return verification_link
-        print("No verification email found.")
-        return None
-    else:
-        print("Error: Unable to retrieve inbox.")
-        return None
-
-# Extract the verification link from the email body (Discord's verification email format)
-def extract_verification_link(body):
-    import re
-    match = re.search(r"https?://[^\s]+", body)
-    if match:
-        return match.group(0)
+# Check for Discord verification email and extract link
+def check_inbox(auth_token):
+    headers = {'Authorization': f'Bearer {auth_token}'}
+    for _ in range(30):  # Wait for up to ~60 seconds
+        res = requests.get(f"{MAILTM_API_URL}/messages", headers=headers)
+        if res.status_code == 200:
+            data = res.json()
+            for msg in data['hydra:member']:
+                if "discord" in msg.get("from", {}).get("address", ""):
+                    msg_id = msg['id']
+                    msg_data = requests.get(f"{MAILTM_API_URL}/messages/{msg_id}", headers=headers).json()
+                    match = re.search(r'https:\/\/click\.discord\.com\/[^\s"]+', msg_data.get("text", ""))
+                    if match:
+                        return match.group(0)
+        time.sleep(2)
     return None
 
-# Function to create a Discord account
-async def create_account():
-    # 1. Create a temporary email
-    temp_email = create_temp_email()
-    if not temp_email:
-        return None, None, None
-    
-    # 2. Use the first 8 characters of the temporary email (before @) as the username
-    username = temp_email.split('@')[0][:8]  # First 8 characters before '@'
-    
-    password = generate_random_string(12)
+# Solve captcha using CapMonster
+async def solve_captcha():
+    client = CapmonsterClient(CAPMONSTER_KEY)
+    task = HCaptchaTask(
+        website_url="https://discord.com/register",
+        website_key="f5561ba9-8f1e-40ca-9b5b-a0b3f719ef34"
+    )
+    task_id = await client.create_task(task)
+    result = await client.join_task_result(task_id)
+    return result.solution.gRecaptchaResponse
 
-    capmonster = HCaptchaTask(CAPMONSTER_KEY)
+# Create a Discord account
+async def create_account():
+    email, mail_password, mail_token = register_mailtm()
+    if not email:
+        return None
+
+    password = generate_random_string()
+    username = email.split('@')[0]
+
+    # Set up Chrome
     options = uc.ChromeOptions()
     options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-blink-features=AutomationControlled")
     driver = uc.Chrome(options=options)
 
     driver.get("https://discord.com/register")
     time.sleep(5)
 
-    driver.find_element(By.NAME, "email").send_keys(temp_email)
+    driver.find_element(By.NAME, "email").send_keys(email)
     driver.find_element(By.NAME, "username").send_keys(username)
     driver.find_element(By.NAME, "password").send_keys(password)
-    driver.find_element(By.XPATH, '//div[@class="css-19bb58m"]').click()
+
+    # Fill birthday
+    driver.find_element(By.XPATH, '//select[@aria-label="Month"]').send_keys("May")
+    driver.find_element(By.XPATH, '//select[@aria-label="Day"]').send_keys("10")
+    driver.find_element(By.XPATH, '//select[@aria-label="Year"]').send_keys("2000")
+
     time.sleep(1)
+    driver.find_element(By.XPATH, "//button[@type='submit']").click()
 
-    # Solve the captcha
-    site_key = "f5561ba9-8f1e-40ca-9b5b-a0b3f719ef34"
-    task_id = capmonster.create_task("https://discord.com/register", site_key)
-    result = capmonster.join_task_result(task_id)
+    time.sleep(5)
 
-    driver.execute_script("""document.querySelector('[name="h-captcha-response"]').innerHTML = arguments[0];""", result['gRecaptchaResponse'])
-    driver.execute_script("document.querySelector('form').submit()")
+    # Solve captcha
+    token = await solve_captcha()
+    driver.execute_script(f'document.querySelector("[name=h-captcha-response]").innerHTML="{token}";')
+    driver.execute_script("document.querySelector('form').submit();")
 
-    time.sleep(15)  # Wait for Discord to process and possibly send a verification email
+    time.sleep(10)
+
+    # Try to get token from local storage
+    try:
+        local_token = driver.execute_script("return window.localStorage.getItem('token');")
+        if local_token:
+            local_token = json.loads(local_token)
+        else:
+            local_token = "Token not found."
+    except:
+        local_token = "Error retrieving token."
+
+    # Check for verification email
+    link = check_inbox(mail_token)
+    if link:
+        driver.get(link)
+        time.sleep(5)
+
     driver.quit()
 
-    # Check the inbox for verification email
-    verification_link = check_inbox(temp_email)
-    if verification_link:
-        # Open the verification link
-        driver = uc.Chrome(options=options)
-        driver.get(verification_link)
-        time.sleep(5)  # Allow time for the page to load
-        driver.quit()
-
-        # Return the email, username, and password (or token if available)
-        return temp_email, username, password
-    else:
-        print("Verification failed.")
-        return None, None, None
+    return f"Email: {email}\nUsername: {username}\nPassword: {password}\nToken: {local_token}"
 
 @bot.command()
 async def caccnt(ctx, num: int):
@@ -150,15 +132,14 @@ async def caccnt(ctx, num: int):
     tokens = []
     for _ in range(num):
         try:
-            email, username, password = await create_account()
-            if email and username and password:
-                tokens.append(f"Email: {email}\nUsername: {username}\nPassword: {password}")
+            acc = await create_account()
+            if acc:
+                tokens.append(acc)
             else:
-                tokens.append("Error: Account creation or verification failed.")
+                tokens.append("Account creation failed.")
         except Exception as e:
             tokens.append(f"Error: {str(e)}")
 
-    # Send tokens to the user via DM
     for t in tokens:
         await ctx.author.send(t)
 
