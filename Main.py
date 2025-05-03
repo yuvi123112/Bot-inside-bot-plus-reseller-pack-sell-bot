@@ -101,7 +101,7 @@ async def create_account():
     
     password = generate_random_string(12)
 
-    capmonster = HCaptchaTask(CAPMONSTER_KEY)
+    capmonster = CapMonsterClient(CAPMONSTER_KEY)
     options = uc.ChromeOptions()
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
